@@ -1,5 +1,5 @@
 # Publica no Instagram o que está na agenda (agenda.json) e já passou da hora. Roda a cada 15 minutos (o GitHub pode atrasar alguns minutos).
-# Segredos (Settings > Secrets and variables > Actions): IG_TOKEN e IG_USER_ID. Mande rodar à mão em Actions > Publicar > Run workflow (campo "so" = publica só um item).
+# Segredos (Settings > Secrets and variables > Actions): IG_TOKEN e IG_USER_ID (Instagram), FB_PAGE_TOKEN e FB_PAGE_ID (Página do Facebook). Mande rodar à mão em Actions > Publicar > Run workflow (campo "so" = publica só um item).
 name: Publicar
 on:
   schedule:
@@ -32,6 +32,8 @@ jobs:
         env:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         run: |
           ARGS=""
           if [ -n "${{ github.event.inputs.so }}" ]; then ARGS="--so=${{ github.event.inputs.so }}"; fi
