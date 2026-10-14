@@ -1,0 +1,46 @@
+# Publica no Instagram o que está na agenda (agenda.json) e já passou da hora. Roda a cada 15 minutos (o GitHub pode atrasar alguns minutos).
+# Segredos (Settings > Secrets and variables > Actions): IG_TOKEN e IG_USER_ID. Mande rodar à mão em Actions > Publicar > Run workflow (campo "so" = publica só um item).
+name: Publicar
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      so:
+        description: 'Publicar só este id da agenda (vazio = o que estiver na hora)'
+        required: false
+        default: ''
+      teste:
+        description: 'Só mostrar o que seria publicado (true/false)'
+        required: false
+        default: 'false'
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publicar
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.so }}" ]; then ARGS="--so=${{ github.event.inputs.so }}"; fi
+          if [ "${{ github.event.inputs.teste }}" = "true" ]; then ARGS="$ARGS --teste"; fi
+          node publicar.js $ARGS
+      - name: Guardar o que foi publicado
+        if: always()
+        run: |
+          git config user.name "publicador"
+          git config user.email "publicador@users.noreply.github.com"
+          git add publicado.json || true
+          git diff --cached --quiet || (git commit -m "Publicado" && git pull --rebase -q && git push -q)
