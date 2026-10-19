@@ -1,0 +1,65 @@
+# Publica no Instagram e na Página do Facebook o que está na agenda (agenda.json) e já passou da hora.
+# VIGÍA (desde 19/10/2026): o agendador do GitHub (`schedule`) atrasa HORAS neste repositório (medido: uma rodada a cada 2 a 5 h, em vez de a cada 15 min),
+# então um post marcado para 12h saía às 14h ou 15h. Agora cada rodada fica de vigia por ~5h45: confere a agenda a cada 45 s (puxando a versão mais nova),
+# publica na hora marcada e, antes de terminar, dispara a próxima vigia (workflow_dispatch com o GITHUB_TOKEN é permitido), formando uma corrente sem buracos.
+# O `schedule` continua só como rede de segurança caso a corrente quebre. Repositório público: não gasta minutos do plano.
+# Segredos (Settings > Secrets and variables > Actions): IG_TOKEN e IG_USER_ID (Instagram), FB_PAGE_TOKEN e FB_PAGE_ID (Página do Facebook).
+# Manual: Actions > Publicar > Run workflow. Campo "so" = publica só um item agora, ignorando o horário; "teste" = só mostra o que seria publicado (uma rodada só, fora da vigia).
+name: Publicar
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+    inputs:
+      so:
+        description: 'Publicar só este id da agenda (vazio = vigia: publica o que estiver na hora)'
+        required: false
+        default: ''
+      teste:
+        description: 'Só mostrar o que seria publicado (true/false)'
+        required: false
+        default: 'false'
+concurrency:
+  # a vigia usa um grupo; as rodadas manuais pontuais ("so"/"teste") usam outro, para não ficarem presas atrás de uma vigia de horas
+  group: publicar2-${{ (github.event.inputs.so != '' || github.event.inputs.teste == 'true') && 'manual' || 'vigia' }}
+  cancel-in-progress: false
+permissions:
+  contents: write
+  actions: write
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publicar (rodada única ou vigia)
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "publicador"
+          git config user.email "publicador@users.noreply.github.com"
+          guardar() {
+            git add publicado.json || true
+            git diff --cached --quiet || (git commit -q -m "Publicado" && git pull --rebase -q && git push -q) || true
+          }
+          ARGS=""
+          if [ -n "${{ github.event.inputs.so }}" ]; then ARGS="--so=${{ github.event.inputs.so }}"; fi
+          if [ "${{ github.event.inputs.teste }}" = "true" ]; then ARGS="$ARGS --teste"; fi
+          if [ -n "$ARGS" ]; then node publicar.js $ARGS; STATUS=$?; guardar; exit $STATUS; fi
+          # vigia: ~5h45 (o GitHub corta o job em 6 h)
+          FIM=$((SECONDS + 20700))
+          while [ $SECONDS -lt $FIM ]; do
+            git pull --rebase -q || { git rebase --abort 2>/dev/null; git fetch -q && git reset -q --hard origin/main; } # se o histórico for refeito no GitHub, volta ao estado novo sem travar
+            if node publicar.js; then ESPERA=45; else ESPERA=300; fi
+            guardar
+            sleep $ESPERA
+          done
+          echo "Fim da vigia; disparando a próxima."
+          gh workflow run Publicar --repo "${{ github.repository }}" || true
