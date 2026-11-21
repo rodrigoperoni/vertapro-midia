@@ -13,7 +13,8 @@ const USER = process.env.IG_USER_ID || '';
 const BASE_FB = `https://graph.facebook.com/${VERSAO}`;
 const FB_TOKEN = process.env.FB_PAGE_TOKEN || '';
 const FB_PAGE = process.env.FB_PAGE_ID || '';
-const BASE_MIDIA = process.env.BASE_MIDIA || 'https://raw.githubusercontent.com/rodrigoperoni/vertapro-midia/main/midia';
+// Endereço das imagens segue o repositório onde o Actions roda (GITHUB_REPOSITORY), para continuar certo se o repositório mudar de dono.
+const BASE_MIDIA = process.env.BASE_MIDIA || `https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'rodrigoperoni/vertapro-midia'}/main/midia`;
 const JANELA_MS = Number(process.env.JANELA_HORAS || 36) * 3600e3;
 const SO = (process.argv.find((a) => a.startsWith('--so=')) || '').split('=')[1];
 const TESTE = process.argv.includes('--teste');
