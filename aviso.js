@@ -12,7 +12,7 @@ async function avisar(titulo, texto) {
         const r = await fetch(`https://api.github.com/repos/${repo}/issues?state=open&per_page=100`, { headers: cab });
         const abertos = await r.json();
         if (Array.isArray(abertos) && abertos.some((i) => i.title === titulo)) return false;
-        const n = await fetch(`https://api.github.com/repos/${repo}/issues`, { method: 'POST', headers: cab, body: JSON.stringify({ title: titulo, body: `@${DONO}\n\n${limpar(texto)}` }) });
+        const n = await fetch(`https://api.github.com/repos/${repo}/issues`, { method: 'POST', headers: cab, body: JSON.stringify({ title: titulo, assignees: [DONO], body: `@${DONO}\n\n${limpar(texto)}` }) });
         if (!n.ok) { console.log('AVISO FALHOU:', n.status, titulo); return false; }
         console.log('AVISO ENVIADO:', titulo);
         return true;
