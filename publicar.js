@@ -130,6 +130,9 @@ async function publicarNoFacebook(item) {
 // ---------- Tentativas e avisos ----------
 const ESPERAS_MIN = [10, 60, 180]; // depois da 1ª, 2ª e 3ª falha; na 4ª desiste
 const PAUSA_SPAM_MIN = 180;
+// Com post do Facebook atrasado, sai no máximo 1 a cada 90 min (para não despejar a fila de uma vez e levar nova recusa). Não é um limite informado pela Meta. O Instagram não muda.
+const ESPACO_FB_MIN = 90;
+const ATRASADO_MIN = 15;
 const NOMES = { instagram: 'Instagram', facebook: 'Facebook' };
 const arquivosDe = (i) => (i.arquivos || [i.arquivo]).filter(Boolean);
 
@@ -139,6 +142,12 @@ function podeTentar(tent, id, rede, agora) {
     if (pausa && agora < Date.parse(pausa)) return false;
     const t = tent[`${id}|${rede}`];
     return !t || (t.tentativas <= ESPERAS_MIN.length && agora >= Date.parse(t.proxima));
+}
+
+function facebookPodeSair(tent, temAtrasado, agora) {
+    if (SO || !temAtrasado) return true;
+    const ultima = Date.parse(tent._ultima_tentativa_facebook || '');
+    return !ultima || agora - ultima >= ESPACO_FB_MIN * 60000;
 }
 
 async function anotarFalha(tent, item, rede, erro) {
@@ -182,6 +191,7 @@ async function principal() {
     const gravarTent = () => fs.writeFileSync(aqui('falhas.json'), JSON.stringify(tent, null, 2));
     let falhas = 0;
     const gravar = () => fs.writeFileSync(aqui('publicado.json'), JSON.stringify(feito, null, 2));
+    const temAtrasadoNoFacebook = devidos.some((i) => falta(i).facebook && podeTentar(tent, i.id, 'facebook', agora) && agora - Date.parse(i.quando) > ATRASADO_MIN * 60000);
     for (const item of devidos) {
         const f = falta(item);
         const reg = feito[item.id] || {};
@@ -189,7 +199,8 @@ async function principal() {
             try { reg.idInstagram = await publicar(item); reg.publicadoEm = reg.publicadoEm || new Date().toISOString(); feito[item.id] = reg; gravar(); console.log('PUBLICADO no Instagram', item.id, reg.idInstagram); }
             catch (e) { falhas++; console.log('FALHOU no Instagram', item.id, '-', e.message); await anotarFalha(tent, item, 'instagram', e.message); gravarTent(); }
         }
-        if (f.facebook && podeTentar(tent, item.id, 'facebook', Date.now())) {
+        if (f.facebook && podeTentar(tent, item.id, 'facebook', Date.now()) && facebookPodeSair(tent, temAtrasadoNoFacebook, Date.now())) {
+            tent._ultima_tentativa_facebook = new Date(Date.now()).toISOString(); gravarTent(); // fica em falhas.json, que a automação salva no GitHub: vale também para a próxima rodada
             try { reg.idFacebook = String(await publicarNoFacebook(item)); reg.publicadoEm = reg.publicadoEm || new Date().toISOString(); feito[item.id] = reg; gravar(); console.log('PUBLICADO no Facebook', item.id, reg.idFacebook); }
             catch (e) { falhas++; console.log('FALHOU no Facebook', item.id, '-', e.message); await anotarFalha(tent, item, 'facebook', e.message); gravarTent(); }
         }
@@ -197,4 +208,4 @@ async function principal() {
     if (falhas) process.exit(1);
 }
 if (require.main === module) principal();
-module.exports = { podeTentar, anotarFalha, conferirProximasMidias, publicarCarrossel, publicarCarrosselNoFacebook, fb, api };
+module.exports = { principal, facebookPodeSair, podeTentar, anotarFalha, conferirProximasMidias, publicarCarrossel, publicarCarrosselNoFacebook, fb, api };
