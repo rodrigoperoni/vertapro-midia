@@ -15,17 +15,22 @@ on:
         description: 'Publicar só este id da agenda (vazio = vigia: publica o que estiver na hora)'
         required: false
         default: ''
+      aviso_teste:
+        description: 'Só mandar um aviso de teste ao dono (true/false)'
+        required: false
+        default: 'false'
       teste:
         description: 'Só mostrar o que seria publicado (true/false)'
         required: false
         default: 'false'
 concurrency:
   # a vigia usa um grupo; as rodadas manuais pontuais ("so"/"teste") usam outro, para não ficarem presas atrás de uma vigia de horas
-  group: publicar2-${{ (github.event.inputs.so != '' || github.event.inputs.teste == 'true') && 'manual' || 'vigia' }}
+  group: publicar2-${{ (github.event.inputs.so != '' || github.event.inputs.teste == 'true' || github.event.inputs.aviso_teste == 'true') && 'manual' || 'vigia' }}
   cancel-in-progress: false
 permissions:
   contents: write
   actions: write
+  issues: write
 jobs:
   publicar:
     runs-on: ubuntu-latest
@@ -47,8 +52,11 @@ jobs:
           git config user.email "publicador@users.noreply.github.com"
           guardar() {
             git add publicado.json || true
-            git diff --cached --quiet || (git commit -q -m "Publicado" && git pull --rebase -q && git push -q) || true
+            [ -f falhas.json ] && git add falhas.json
+            git diff --cached --quiet || (git commit -q -m "Publicado" && git pull --rebase -q && git push -q) \
+              || node aviso.js "Não consegui salvar o registro das postagens" "Risco de post repetido. Pause a automação e confira publicado.json." || true
           }
+          if [ "${{ github.event.inputs.aviso_teste }}" = "true" ]; then node aviso.js "Teste de aviso do publicador" "Se você recebeu isto, os avisos funcionam. Pode fechar."; exit 0; fi
           ARGS=""
           if [ -n "${{ github.event.inputs.so }}" ]; then ARGS="--so=${{ github.event.inputs.so }}"; fi
           if [ "${{ github.event.inputs.teste }}" = "true" ]; then ARGS="$ARGS --teste"; fi
