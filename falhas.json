@@ -4,5 +4,11 @@
     "erro": "FB 400 Limitamos a frequência com que você pode postar, comentar ou fazer outras coisas em um determinado intervalo de tempo para ajudar a proteger a comunidade contra spam. Você pode tentar novamente mais tarde. Saiba mais",
     "proxima": "2026-11-25T22:11:04.188Z"
   },
-  "_pausa_facebook": "2026-11-26T01:01:04.188Z"
+  "_pausa_facebook": "2026-11-26T04:01:12.561Z",
+  "_ultima_tentativa_facebook": "2026-11-26T01:01:11.594Z",
+  "2026-11-19-1900-vertapro-tutorial-9-relatorio-whatsapp-voz-elvis|facebook": {
+    "tentativas": 1,
+    "erro": "FB 400 Limitamos a frequência com que você pode postar, comentar ou fazer outras coisas em um determinado intervalo de tempo para ajudar a proteger a comunidade contra spam. Você pode tentar novamente mais tarde. Saiba mais",
+    "proxima": "2026-11-26T01:11:12.561Z"
+  }
 }
