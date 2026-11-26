@@ -17,6 +17,8 @@ const FB_PAGE = process.env.FB_PAGE_ID || '';
 // Endereço das imagens segue o repositório onde o Actions roda (GITHUB_REPOSITORY), para continuar certo se o repositório mudar de dono.
 const BASE_MIDIA = process.env.BASE_MIDIA || `https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY || 'rodrigoperoni/vertapro-midia'}/main/midia`;
 const JANELA_MS = Number(process.env.JANELA_HORAS || 36) * 3600e3;
+// O Facebook espera mais antes de desistir de um item: depois de uma pausa, a fila anda devagar e não pode ser descartada. O Instagram segue com JANELA_MS.
+const JANELA_FB_MS = Number(process.env.JANELA_FB_HORAS || 96) * 3600e3;
 const SO = (process.argv.find((a) => a.startsWith('--so=')) || '').split('=')[1];
 const TESTE = process.argv.includes('--teste');
 const aqui = (f) => path.join(__dirname, f);
@@ -158,7 +160,7 @@ async function anotarFalha(tent, item, rede, erro) {
     const espera = ESPERAS_MIN[t.tentativas - 1];
     t.proxima = new Date(Date.now() + (espera || 0) * 60000).toISOString();
     tent[chave] = t;
-    if (/limitamos|limit|spam|too many|frequ/i.test(t.erro)) tent[`_pausa_${rede}`] = new Date(Date.now() + PAUSA_SPAM_MIN * 60000).toISOString();
+    if (/limitamos|limit|spam|too many|frequ/i.test(t.erro)) tent[`_pausa_${rede}`] = new Date(Math.max(Date.parse(tent[`_pausa_${rede}`]) || 0, Date.now() + PAUSA_SPAM_MIN * 60000)).toISOString(); // nunca encurta uma pausa maior
     if (t.tentativas === 1) await avisar(`Falha ao publicar no ${NOMES[rede]}: ${item.id}`, `Erro: ${t.erro}\n\nVou tentar de novo mais tarde (no máximo 4 vezes).`);
     if (!espera) await avisar(`DESISTI de publicar no ${NOMES[rede]}: ${item.id}`, `Falhou ${t.tentativas} vezes. Não vou tentar de novo sozinho.\n\nÚltimo erro: ${t.erro}`);
 }
@@ -176,11 +178,12 @@ async function principal() {
     const feito = lerJson('publicado.json', {});
     const agora = Date.now();
     const usaFacebook = !!(FB_TOKEN && FB_PAGE);
-    const falta = (i) => { const r = feito[i.id] || {}; return { instagram: !r.idInstagram, facebook: usaFacebook && !r.idFacebook }; };
+    const noPrazo = (i, janela) => !!SO || agora - Date.parse(i.quando) <= janela;
+    const falta = (i) => { const r = feito[i.id] || {}; return { instagram: !r.idInstagram && noPrazo(i, JANELA_MS), facebook: usaFacebook && !r.idFacebook && noPrazo(i, JANELA_FB_MS) }; };
     const devidos = agenda.filter((i) => {
         const f = falta(i);
         if (!f.instagram && !f.facebook) return false;
-        return SO ? i.id === SO : (Date.parse(i.quando) <= agora && agora - Date.parse(i.quando) <= JANELA_MS);
+        return SO ? i.id === SO : Date.parse(i.quando) <= agora;
     });
     console.log(`Agora: ${new Date(agora).toISOString()} | agenda: ${agenda.length} | Instagram+Facebook: ${usaFacebook ? 'sim' : 'só Instagram'} | para publicar agora: ${devidos.length}`);
     if (SO && !devidos.length) { console.log('Nenhum item com esse id (ou já publicado em tudo).'); return; }
